@@ -58,7 +58,7 @@ async function readPayload(request) {
   catch { return { error: 400 } }
 }
 
-export async function handleApi(request, store, clock = Date.now) {
+export async function handleApi(request, store, clock = Date.now, clientAddress) {
   const url = new URL(request.url)
   const state = getSeason(clock())
   if (url.pathname === '/api/season') {
@@ -88,7 +88,7 @@ export async function handleApi(request, store, clock = Date.now) {
   const current = getSeason(clock())
   if (payload.season !== current.season) return json(current, 409)
   const entry = { id: crypto.randomUUID(), name, message, created: current.now }
-  const sender = request.headers.get('x-vercel-forwarded-for')?.split(',')[0].trim() || 'local'
+  const sender = clientAddress || request.headers.get('x-vercel-forwarded-for')?.split(',')[0].trim() || 'local'
   try {
     if (!await store.add(current.season, entry, sender)) return json({ error: 'Slow down' }, 429)
     return json({ id: entry.id }, 201)

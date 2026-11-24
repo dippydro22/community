@@ -2,31 +2,17 @@ import { createServer } from 'node:http'
 import { Readable } from 'node:stream'
 import { readFile } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
-import { handleApi, messageLifetime } from '../server.js'
+import { handleApi } from '../server.js'
+import { createSqliteStore } from '../sqlite.js'
 import { handleAdmin } from '../admin.js'
 
-const messages = []
-const prune = (now) => {
-  while (messages.length && messages[0].entry.created <= now - messageLifetime) messages.shift()
-}
-const store = {
-  list(season, now) {
-    prune(now)
-    return messages.filter(item => item.season === season).slice(-100).map(item => item.entry)
-  },
-  add(season, entry, sender) {
-    prune(entry.created)
-    if (messages.filter(item => item.sender === sender && item.entry.created > entry.created - 10000).length >= 8) return false
-    messages.push({ season, entry, sender })
-    return true
-  }
-}
+const store = createSqliteStore()
 const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' }
 const vendor = new Set(['/vendor/three.module.min.js', '/vendor/three.core.min.js'])
 const root = resolve('public')
 const portArg = process.argv.findIndex(value => value === '--port' || value === '-p')
 const port = Number((portArg >= 0 ? process.argv[portArg + 1] : process.env.PORT) ?? 3000)
-createServer(async (incoming, outgoing) => {
+const server = createServer(async (incoming, outgoing) => {
   try {
     const origin = (incoming.headers['x-forwarded-proto'] ?? 'http') + '://' + incoming.headers.host
     const url = new URL(incoming.url, origin)
@@ -38,7 +24,7 @@ createServer(async (incoming, outgoing) => {
         ...(method !== 'GET' && method !== 'HEAD' ? { body: Readable.toWeb(incoming), duplex: 'half' } : {})
       })
       response = url.pathname === '/admin' || url.pathname === '/api/admin'
-        ? await handleAdmin(request) : await handleApi(request, store)
+        ? await handleAdmin(request) : await handleApi(request, store, Date.now, incoming.socket.remoteAddress)
     } else {
       const file = url.pathname === '/' ? '/index.html' : url.pathname
       const path = resolve(root, '.' + file)
@@ -57,3 +43,5 @@ createServer(async (incoming, outgoing) => {
     outgoing.writeHead(500).end()
   }
 }).listen(port, '0.0.0.0', () => console.log('Listening on port ' + port))
+
+server.once('close', () => store.close())

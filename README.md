@@ -6,9 +6,11 @@
 
 겨울에는 고구마를 60초, 마시멜로를 12초 구워 꺼냅니다. 익을수록 음식 표면이 바뀌고, 시간이 지나면 탑니다. 채팅 메시지는 같은 쉼터에 접속한 사람에게 보이며 약 1분 뒤 사라집니다.
 
-## 로컬 실행
+## SQLite로 실행
 
-Node.js 24에서 `npm ci`, `npm run dev`를 실행하고 http://localhost:3000 을 엽니다. 개발 서버의 채팅 데이터는 서버를 재시작하면 초기화됩니다. `npm run build`는 정적 파일을 `dist/`에 생성합니다.
+Node.js 24에서 `npm ci`, `npm run dev`를 실행하고 http://localhost:3000 을 엽니다. 같은 Node.js 서버에 접속한 브라우저는 내장 SQLite의 채팅을 공유합니다. 메시지는 약 1분 후 사라지며, 서버를 재시작하면 메모리의 SQLite 데이터도 초기화됩니다. `npm run build`는 정적 파일을 `dist/`에 생성합니다.
+
+운영 환경에서도 Node.js 24를 지원하는 호스팅에서 `npm start`로 실행할 수 있습니다. 채팅을 공유하려면 모든 접속자가 하나의 서버 인스턴스에 연결되어야 합니다.
 
 ## Vercel 배포
 
@@ -18,7 +20,7 @@ Node.js 24에서 `npm ci`, `npm run dev`를 실행하고 http://localhost:3000 �
    - `UPSTASH_REDIS_REST_TOKEN`
 3. 배포합니다. Vercel 연동에서 제공하는 `KV_REST_API_URL`과 `KV_REST_API_TOKEN`도 사용할 수 있습니다.
 
-`/api/season`은 서버의 현재 계절과 다음 전환 시각을 반환합니다. `/api/chat`은 현재 계절을 서버에서 적용하며, Vercel에서 채팅을 사용하려면 Redis 연결이 필요합니다.
+`/api/season`은 서버의 현재 계절과 다음 전환 시각을 반환합니다. `/api/chat`은 현재 계절을 서버에서 적용하며, Vercel Functions 배포는 인스턴스별 메모리를 사용하므로 접속자 간 채팅 공유에 Redis 연결이 필요합니다.
 
 ## 관리자 미리보기
 
