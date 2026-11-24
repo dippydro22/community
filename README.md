@@ -14,13 +14,16 @@ Node.js 24에서 `npm ci`, `npm run dev`를 실행하고 http://localhost:3000 �
 
 ## Vercel 배포
 
-1. Vercel에서 이 저장소를 가져오고 배포할 브랜치를 연결합니다. `vercel.json`의 빌드 설정과 `api/` 함수를 사용합니다.
-2. Vercel Marketplace에서 Upstash Redis를 프로젝트에 연결하거나 아래 환경 변수를 추가합니다.
-   - `UPSTASH_REDIS_REST_URL`
-   - `UPSTASH_REDIS_REST_TOKEN`
-3. 배포합니다. Vercel 연동에서 제공하는 `KV_REST_API_URL`과 `KV_REST_API_TOKEN`도 사용할 수 있습니다.
+1. 기존 withER의 Firebase 프로젝트 또는 별도 Firebase 프로젝트에서 Realtime Database를 사용합니다.
+2. Firebase 콘솔의 **Realtime Database**에서 데이터베이스 URL을 복사합니다. **프로젝트 설정 → 서비스 계정**에서 서버용 서비스 계정 키를 준비합니다.
+3. Vercel **Settings → Environment Variables**의 **Production**에 아래 값을 설정하고 재배포합니다.
+   - `FIREBASE_DATABASE_URL`: Realtime Database URL
+   - `FIREBASE_SERVICE_ACCOUNT_JSON`: 서비스 계정 JSON 파일의 전체 내용. 서버 환경 변수로 보관합니다.
+4. 브라우저에서 배포 사이트의 `/api/chat`을 열어 `messages` 배열이 반환되는지 확인합니다.
 
-`/api/season`은 서버의 현재 계절과 다음 전환 시각을 반환합니다. `/api/chat`은 현재 계절을 서버에서 적용하며, Vercel Functions 배포는 인스턴스별 메모리를 사용하므로 접속자 간 채팅 공유에 Redis 연결이 필요합니다.
+채팅 데이터는 `seasonCampfire/production/{계절}` 아래에 저장됩니다. Vercel Preview는 `seasonCampfire/preview`를 씁니다. 브라우저는 이 데이터베이스에 직접 연결하지 않습니다. withER과 DB를 공유하는 경우 기존 Firebase 규칙을 확인해 이 경로에 일반 클라이언트가 읽거나 쓸 수 없도록 설정하세요. Firebase 규칙에서 상위 경로에 부여한 권한은 하위 규칙으로 철회할 수 없으므로, 전체 DB를 공개한 프로젝트라면 기존 규칙을 수정하거나 별도 DB를 사용하세요.
+
+`/api/season`이 현재 계절을 정하고 `/api/chat`이 같은 계절의 유효한 메시지만 반환합니다. 1분이 지난 기록은 해당 방에 다음 채팅 요청이 들어올 때 Firebase에서 정리됩니다.
 
 ## 관리자 미리보기
 

@@ -1,5 +1,5 @@
 import { handleApi } from '../server.js'
-import { createRedisStore } from '../redis.js'
+import { createFirebaseStore } from '../firebase.js'
 
-const store = createRedisStore()
+const store = createFirebaseStore()
 export default { fetch: (request) => handleApi(request, store) }
