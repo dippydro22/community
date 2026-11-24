@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko" data-season="winter">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101723">
+  <meta name="description" content="계절의 풍경 속에서 먹거리를 즐기고 이야기를 나누는 쉼터">
+  <title>계절의 모닥불</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="brand-icon" aria-hidden="true">♨</span><div><strong>계절의 모닥불</strong><small>THE SEASONAL HEARTH</small></div></div>
+    <nav aria-label="계절 선택">
+      <button data-season="spring" aria-pressed="false"><span>✿</span> 봄</button>
+      <button data-season="summer" aria-pressed="false"><span>☀</span> 여름</button>
+      <button data-season="autumn" aria-pressed="false"><span>❧</span> 가을</button>
+      <button data-season="winter" aria-pressed="true"><span>❄</span> 겨울</button>
+    </nav>
+  </header>
+  <main>
+    <div class="left">
+      <section class="scene" aria-labelledby="scene-title">
+        <div class="art"></div><canvas aria-hidden="true"></canvas>
+        <div class="scene-copy"><div id="season-label">❄ &nbsp; 겨울 쉼터</div><h1 id="scene-title">눈 내리는 모닥불</h1><p id="scene-description">눈 덮인 숲에서 불을 쬐며 잠깐 쉬어가요.</p></div>
+        <div class="scene-foot"><span></span><p id="scene-place">눈 덮인 소나무 숲</p></div>
+      </section>
+      <section class="food-section" aria-labelledby="food-title">
+        <div class="food-heading"><h2 id="food-title">모닥불 간식</h2><p id="food-hint">불에 올리고 알맞은 때에 꺼내보세요.</p></div>
+        <div id="foods"></div>
+        <p id="food-feedback" class="sr-only" role="status"></p>
+      </section>
+    </div>
+    <section class="chat" aria-labelledby="chat-title">
+      <div class="chat-head"><div class="chat-icon" aria-hidden="true">☏</div><div><h2 id="chat-title">모닥불 옆 수다</h2><p>메시지는 1분 뒤 사라져요</p></div></div>
+      <div class="chat-content">
+        <div class="empty" id="empty"><span aria-hidden="true">✧</span><strong>첫 이야기를 들려주세요.</strong><p>오늘 하루는 어땠나요?</p></div>
+        <ul id="messages" aria-label="채팅 메시지" aria-live="polite"></ul>
+      </div>
+      <form id="chat-form">
+        <label for="nickname">별명</label>
+        <input id="nickname" maxlength="20" autocomplete="nickname" required>
+        <div class="compose"><input id="message" aria-label="메시지" placeholder="이야기를 남겨보세요…" maxlength="300" required><button type="submit" aria-label="메시지 보내기">➤</button></div>
+        <p id="chat-status" role="status"></p>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
