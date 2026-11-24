@@ -2,6 +2,12 @@ const calendar = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric'
 })
 export const messageLifetime = 60000
+export class ChatStoreError extends Error {
+  constructor(code) {
+    super(code)
+    this.code = code
+  }
+}
 
 export function getSeason(now = Date.now()) {
   const parts = Object.fromEntries(calendar.formatToParts(now).map(({ type, value }) => [type, value]))
@@ -17,6 +23,20 @@ const json = (data, status = 200) => Response.json(data, {
   status,
   headers: { 'Cache-Control': 'no-store' }
 })
+
+let lastStoreLog = -Infinity
+function chatUnavailable(error, state) {
+  const code = error instanceof ChatStoreError ? error.code : 'CHAT_STORE_ERROR'
+  const now = Date.now()
+  if (now - lastStoreLog >= 60000) {
+    console.error('Chat unavailable:', code)
+    lastStoreLog = now
+  }
+  return json({
+    ...state, error: 'Chat unavailable',
+    code: code === 'CHAT_NOT_CONFIGURED' ? code : 'CHAT_STORE_UNAVAILABLE'
+  }, 503)
+}
 
 async function readPayload(request) {
   const reader = request.body?.getReader()
@@ -48,8 +68,8 @@ export async function handleApi(request, store, clock = Date.now) {
   if (request.method === 'GET') {
     try {
       return json({ ...state, messages: await store.list(state.season, state.now) })
-    } catch {
-      return json({ ...state, error: 'Chat unavailable' }, 503)
+    } catch (error) {
+      return chatUnavailable(error, state)
     }
   }
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -72,7 +92,7 @@ export async function handleApi(request, store, clock = Date.now) {
   try {
     if (!await store.add(current.season, entry, sender)) return json({ error: 'Slow down' }, 429)
     return json({ id: entry.id }, 201)
-  } catch {
-    return json({ error: 'Chat unavailable' }, 503)
+  } catch (error) {
+    return chatUnavailable(error, current)
   }
 }

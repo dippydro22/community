@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { messageLifetime } from './server.js'
+import { ChatStoreError, messageLifetime } from './server.js'
 
 const post = `
 local count = redis.call('INCR', KEYS[2])
@@ -13,19 +13,29 @@ return 1
 `
 
 export function createRedisStore(env = process.env) {
-  const url = env.UPSTASH_REDIS_REST_URL ?? env.KV_REST_API_URL
-  const token = env.UPSTASH_REDIS_REST_TOKEN ?? env.KV_REST_API_TOKEN
+  const credentials = [
+    [env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN],
+    [env.KV_REST_API_URL, env.KV_REST_API_TOKEN]
+  ].map(pair => pair.map(value => value?.trim()))
+    .find(([url, token]) => url && token)
   const prefix = 'hearth:' + (env.VERCEL_ENV ?? 'production')
   async function command(...args) {
-    if (!url || !token) throw Error('Redis is not configured')
-    const result = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify(args),
-      signal: AbortSignal.timeout(4500)
-    })
+    if (!credentials) throw new ChatStoreError('CHAT_NOT_CONFIGURED')
+    const [url, token] = credentials
+    let result
+    try {
+      result = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(args),
+        signal: AbortSignal.timeout(4500)
+      })
+    } catch {
+      throw new ChatStoreError('REDIS_REQUEST_FAILED')
+    }
+    if (!result.ok) throw new ChatStoreError('REDIS_HTTP_' + result.status)
     const data = await result.json()
-    if (!result.ok || data.error) throw Error('Redis command failed')
+    if (data.error) throw new ChatStoreError('REDIS_COMMAND_FAILED')
     return data.result
   }
   return {

@@ -109,6 +109,11 @@ function startChat() {
   let clockOffset = 0
   let newestServerTime = 0
   let latestRequest = 0
+  let retryAfter = 0
+  const unavailable = '채팅에 연결할 수 없어요. 잠시 후 다시 시도할게요.'
+  function chatError(code) {
+    return code === 'CHAT_NOT_CONFIGURED' ? '채팅 서버 설정이 아직 완료되지 않았어요.' : unavailable
+  }
   function applySeason(state) {
     if (state.now < newestServerTime) return false
     newestServerTime = state.now
@@ -143,16 +148,19 @@ function startChat() {
     $('#empty').hidden = list.children.length > 0
   }
   async function refreshChat() {
-    if (!season) return
+    if (!season || Date.now() < retryAfter) return
     const request = ++latestRequest
+    let failureMessage = unavailable
     try {
       const response = await fetch('/api/chat', { cache: 'no-store' })
       const result = await response.json()
       if (request !== latestRequest) return
       if (!response.ok) {
         if (result.season) applySeason(result)
+        failureMessage = chatError(result.code)
         throw Error()
       }
+      retryAfter = 0
       if (result.season !== season && !applySeason(result)) return
       const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 45
       const known = new Set([...list.children].map(element => element.dataset.id))
@@ -177,8 +185,9 @@ function startChat() {
       }
     } catch {
       if (request !== latestRequest) return
+      retryAfter = Date.now() + 12000
       status.dataset.connection = 'failed'
-      status.textContent = '채팅에 연결하는 중이에요.'
+      if (status.textContent !== failureMessage) status.textContent = failureMessage
     }
   }
   $('#chat-form').addEventListener('submit', async (event) => {
@@ -197,6 +206,7 @@ function startChat() {
         refreshChat()
         throw Error('계절이 바뀌었어요. 새 쉼터에 다시 보내주세요.')
       }
+      if (response.status === 503) throw Error(chatError((await response.json()).code))
       if (!response.ok) throw Error(response.status === 429 ? '잠시 쉬었다가 다시 보내주세요.' : '메시지를 보내지 못했어요. 다시 시도해주세요.')
       try { localStorage.setItem('hearth-nickname', name) } catch {}
       if (input.value.trim() === message) input.value = ''
