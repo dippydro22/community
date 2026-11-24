@@ -8,4 +8,4 @@ Node.js 24 이상에서 `npm run dev`를 실행하고 http://localhost:3000 을 
 
 채팅은 약 1분 뒤 사라집니다. 겨울에는 고구마를 60초, 마시멜로를 12초 구운 뒤 꺼내 먹을 수 있습니다. 다 익은 후 고구마는 18초, 마시멜로는 5초가 지나면 탑니다.
 
-`npm run build`는 Sites 호스팅용 Worker를 `dist/server/index.js`에 생성합니다. 배포 환경에는 `DB` D1 바인딩과 `migrations/0001_chat.sql`의 스키마가 필요합니다.
+`npm run build`는 Sites 호스팅용 Worker를 `dist/server/index.js`에 생성합니다. 배포 환경에는 `DB` D1 바인딩과 `drizzle/0001_chat.sql`의 스키마가 필요합니다.

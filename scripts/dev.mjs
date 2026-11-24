@@ -8,7 +8,7 @@ import { loadAssets } from './assets.mjs'
 await mkdir('.local', {recursive:true})
 const sqlite = new DatabaseSync('.local/chat.sqlite')
 const schemaApplied = sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages'").get()
-if (!schemaApplied) sqlite.exec(await readFile('migrations/0001_chat.sql', 'utf8'))
+if (!schemaApplied) sqlite.exec(await readFile('drizzle/0001_chat.sql', 'utf8'))
 const DB = {
   prepare(sql) {
     return {
