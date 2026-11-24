@@ -306,6 +306,37 @@ function makeParticles(world, season, random) {
   }
 }
 
+function makeCorn(group, surface) {
+  const mount = new T.Group()
+  mount.rotation.z = Math.PI / 2
+  group.add(mount)
+  const cob = new T.Group()
+  mount.add(cob)
+  const profile = [[0,-.36],[.065,-.35],[.098,-.31],[.112,-.24],[.118,-.07],
+    [.117,.09],[.108,.23],[.087,.31],[.049,.35],[0,.36]]
+  model(cob, new T.LatheGeometry(profile.map(([radius,y]) => new T.Vector2(radius,y)), 24),
+    surface, [0,0,0], [1,1,1])
+  const toast = new T.MeshStandardMaterial({ roughness:.8 })
+  const gold = new T.Color(0xeeb54a)
+  const amber = new T.Color(0xb26a2d)
+  const char = new T.Color(0x392019)
+  const rows = [[-.28,.093],[-.224,.108],[-.168,.113],[-.112,.115],[-.056,.116],
+    [0,.116],[.056,.115],[.112,.113],[.168,.110],[.224,.104],[.28,.086]]
+  rows.forEach(([y,radius], row) => {
+    for (let column = 0; column < 12; column++) {
+      const angle = column * Math.PI / 6
+      const kernel = model(cob, smooth, (row * 7 + column * 3) % 11 < 2 ? toast : surface,
+        [Math.sin(angle)*radius,y,Math.cos(angle)*radius], [radius*.28,.03,.013])
+      kernel.rotation.y = angle
+    }
+  })
+  return (turn, progress, burned) => {
+    cob.rotation.y = turn
+    if (burned) toast.color.copy(char)
+    else toast.color.copy(gold).lerp(amber, progress * progress)
+  }
+}
+
 function makeFood(world, season, index) {
   const group = new T.Group()
   world.add(group)
@@ -321,6 +352,7 @@ function makeFood(world, season, index) {
   const burnt = new T.Color(0x24171a)
   let food
   let opened
+  let updateCorn
   const spots = []
   if (season === 'winter' && index === 0) {
     const geometry = smooth.clone()
@@ -371,30 +403,16 @@ function makeFood(world, season, index) {
       spot.visible = false
       spots.push(spot)
     }
+  } else if (season === 'autumn' && index === 1) {
+    updateCorn = makeCorn(group, surface)
   } else {
-    const sizes = { autumn: [[.21,.16,.19],[.13,.36,.14]], spring: [[.16,.20,.16],[.23,.22,.15]], summer: [[.29,.16,.20],[.23,.26,.21]] }
+    const sizes = { autumn: [[.21,.16,.19]], spring: [[.16,.20,.16],[.23,.22,.15]], summer: [[.29,.16,.20],[.23,.26,.21]] }
     food = model(group, season === 'spring' && index === 1 ? cone : sphere, surface, [0,0,0], sizes[season][index])
     if (season === 'autumn' && index === 0) {
       model(group, sphere, 0xc58c61, [0,-.076,.09], [.155,.064,.16])
       const seam = model(group, sphere, 0xf1b66d, [0,.14,.02], [.128,.027,.025])
       seam.visible = false
       spots.push(seam)
-    }
-    if (season === 'autumn' && index === 1) {
-      for (let row = 0; row < 7; row++) {
-        for (let column = 0; column < 8; column++) {
-          const angle = column * Math.PI / 4 + row*.16
-          const y = (row-3)*.082
-          const radius = .073 + .054*Math.cos((row-3)*.41)
-          const kernel = model(group, sphere, column % 3 ? surface : 0xe3a647,
-            [Math.cos(angle)*radius,y,Math.sin(angle)*radius], [.032,.047,.035])
-          if ((row+column*3)%7 === 0) {
-            const spot = model(kernel,sphere,0x633820,[0,.67,0],[.72,.34,.72])
-            spot.visible = false
-            spots.push(spot)
-          }
-        }
-      }
     }
     if (season === 'spring' && index === 0) model(group, sphere, 0x4f9850, [0,.18,0], [.12,.045,.12])
     if (season === 'spring' && index === 1) model(group, box, 0x344b40, [0,-.14,.09], [.15,.15,.13])
@@ -415,7 +433,9 @@ function makeFood(world, season, index) {
     else group.position.lerp(position,.12)
     group.rotation.y = (inFire ? -.32 : .2) + (index === 0 ? .25 : -.1)
     group.rotation.x = stage === 'ready' ? -.34 : 0
-    if (index === 1) food.rotation.x = inFire && !reduced ? time * .62 : 0
+    const turn = inFire && !reduced ? time * .62 : 0
+    if (updateCorn) updateCorn(turn, progress, stage === 'burned')
+    else if (index === 1) food.rotation.x = turn
     if (stage === 'burned') surface.color.copy(burnt)
     else surface.color.copy(raw).lerp(baked, stage === 'ready' ? 1 : Math.min(progress,1))
     for (let i = 0; i < spots.length; i++) spots[i].visible = stage === 'ready' || stage === 'burned' || progress > .62+i*.04
