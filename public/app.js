@@ -3,10 +3,10 @@ import { cookingState, cookAction } from './cooking.js'
 
 const $ = (selector) => document.querySelector(selector)
 const seasons = {
-  winter: ['❄', '겨울 쉼터', '눈 내리는 모닥불', '눈 덮인 숲에서 불을 쬐며 잠깐 쉬어가요.', '눈 덮인 소나무 숲', '모닥불 간식', '불에 올리고 알맞은 때에 꺼내보세요.', [['🍠', '군고구마', 60, 18], ['🍡', '마시멜로', 12, 5]]],
-  spring: ['✿', '봄 쉼터', '벚꽃 아래 소풍', '꽃잎이 내려앉는 자리에서 돗자리를 펴요.', '벚꽃이 핀 공원', '피크닉 간식', '돗자리에서 간식을 하나 골라보세요.', [['🍓', '딸기'], ['🍙', '주먹밥']]],
-  summer: ['☀', '여름 쉼터', '파도가 밀려오는 해변', '바닷바람을 맞으며 시원한 간식을 나눠요.', '햇살 가득한 모래사장', '해변 간식', '더위를 식혀 줄 간식을 골라보세요.', [['🍉', '수박'], ['🍧', '빙수']]],
-  autumn: ['❧', '가을 쉼터', '낙엽 쌓인 캠핑장', '단풍 사이로 해가 지면 캠핑 의자에 앉아요.', '단풍나무 숲속 캠핑장', '캠핑 간식', '불에 올리고 알맞은 때에 꺼내보세요.', [['🌰', '군밤', 24, 10], ['🌽', '구운 옥수수', 35, 12]]]
+  winter: ['겨울 쉼터', '눈 내리는 모닥불', '눈 덮인 숲에서 불을 쬐며 잠깐 쉬어가요.', '눈 덮인 소나무 숲', '모닥불 간식', '불에 올리고 알맞은 때에 꺼내보세요.', [['군고구마', 60, 18], ['마시멜로', 12, 5]]],
+  spring: ['봄 쉼터', '벚꽃 아래 소풍', '꽃잎이 내려앉는 자리에서 돗자리를 펴요.', '벚꽃이 핀 공원', '피크닉 간식', '돗자리에서 간식을 하나 골라보세요.', [['딸기'], ['주먹밥']]],
+  summer: ['여름 쉼터', '파도가 밀려오는 해변', '바닷바람을 맞으며 시원한 간식을 나눠요.', '햇살 가득한 모래사장', '해변 간식', '더위를 식혀 줄 간식을 골라보세요.', [['수박'], ['빙수']]],
+  autumn: ['가을 쉼터', '낙엽 쌓인 캠핑장', '단풍 사이로 해가 지면 캠핑 의자에 앉아요.', '단풍나무 숲속 캠핑장', '캠핑 간식', '불에 올리고 알맞은 때에 꺼내보세요.', [['군밤', 24, 10], ['구운 옥수수', 35, 12]]]
 }
 
 const cooking = new Map()
@@ -18,9 +18,9 @@ let foodCards = []
 function selectSeason(key) {
   season = key
   scene.setSeason(key)
-  const [icon, label, title, description, place, foodTitle, hint, foods] = seasons[key]
+  const [label, title, description, place, foodTitle, hint, foods] = seasons[key]
   document.documentElement.dataset.season = key
-  $('#season-label').textContent = icon + '　' + label
+  $('#season-label').textContent = label
   $('#scene-title').textContent = title
   $('#scene-description').textContent = description
   $('#season-label').hidden = false
@@ -36,21 +36,24 @@ function selectSeason(key) {
     $('#chat-status').textContent = ''
     $('#chat-form button').disabled = false
   }
-  $('#scene-place').textContent = place + ' · 드래그해서 둘러보기'
+  $('#scene-place').textContent = place
   $('#food-title').textContent = foodTitle
   $('#food-hint').textContent = hint
-  foodCards = foods.map(([emoji, name, duration, grace], index) => {
+  foodCards = foods.map(([name, duration, grace], index) => {
     const id = key + index
     const card = document.createElement('div')
     card.className = 'food'
-    card.innerHTML = '<span class="food-emoji" aria-hidden="true"></span><div><strong class="food-name"></strong><span class="food-state"></span></div><button type="button"></button>'
-    card.querySelector('.food-emoji').textContent = emoji
+    card.innerHTML = '<div><strong class="food-name"></strong><span class="food-state"></span><progress class="food-progress" max="1" hidden></progress></div><button type="button"></button>'
     card.querySelector('.food-name').textContent = name
     const state = card.querySelector('.food-state')
     const button = card.querySelector('button')
+    const meter = card.querySelector('progress')
+    meter.setAttribute('aria-label', name + ' 익은 정도')
     const update = () => {
       const { stage, elapsed, progress } = cookingState(cooking.get(id), duration, grace, performance.now())
       scene.setFood(index, { stage, progress })
+      meter.hidden = !['cooking','paused','ready'].includes(stage)
+      if (!meter.hidden) meter.value = progress
       let detail
       let action
       if (stage === 'cooking') {
@@ -100,12 +103,17 @@ function startChat() {
   try { nickname.value = localStorage.getItem('hearth-nickname') ?? '' } catch {}
   const list = $('#messages')
   const status = $('#chat-status')
+  const dateLabel = $('#calendar-date')
+  const dateFormat = new Intl.DateTimeFormat('ko-KR', {timeZone:'Asia/Seoul', month:'long', day:'numeric'})
+  const dateKey = new Intl.DateTimeFormat('sv-SE', {timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit'})
   let clockOffset = 0
   let newestServerTime = 0
   let latestRequest = 0
   function applySeason(state) {
     if (state.now < newestServerTime) return false
     newestServerTime = state.now
+    dateLabel.dateTime = dateKey.format(state.now)
+    dateLabel.textContent = dateFormat.format(state.now)
     if (state.season !== season && Object.hasOwn(seasons, state.season)) selectSeason(state.season)
     clockOffset = state.now - Date.now()
     clearTimeout(seasonTimer)

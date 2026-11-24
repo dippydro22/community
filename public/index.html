@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101723">
+  <meta name="theme-color" content="#f4f1e8">
   <meta name="description" content="계절의 풍경 속에서 먹거리를 즐기고 이야기를 나누는 쉼터">
   <title>계절의 모닥불</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,33 +13,64 @@
   <script type="module" src="/app.js"></script>
 </head>
 <body>
+  <a class="skip" href="#chat-title">채팅으로 바로 가기</a>
   <header class="top">
-    <div class="brand"><span class="brand-icon" aria-hidden="true">♨</span><div><strong>계절의 모닥불</strong><small>THE SEASONAL HEARTH</small></div></div>
-    <div class="calendar" id="calendar" aria-live="polite">계절 확인 중</div>
+    <a class="brand" href="/">계절의 모닥불</a>
+    <!-- header-tools:start -->
+    <div class="calendar">
+      <span id="calendar">계절 확인 중</span>
+      <time id="calendar-date"></time>
+    </div>
+    <!-- header-tools:end -->
   </header>
   <main>
     <div class="left">
-      <section class="scene" aria-labelledby="scene-title">
-        <canvas tabindex="0" aria-label="3D 풍경. 드래그하거나 방향키로 둘러볼 수 있어요."></canvas><p class="scene-error" hidden>이 기기에서 3D 풍경을 표시할 수 없어요.</p>
-        <div class="scene-copy"><div id="season-label" hidden></div><h1 id="scene-title">쉼터를 여는 중</h1><p id="scene-description">한국 시간에 맞는 풍경을 불러오고 있어요.</p></div>
-        <div class="scene-foot"><span aria-hidden="true"></span><p id="scene-place">드래그해서 둘러보기</p></div>
+      <section class="place" aria-labelledby="scene-title">
+        <div class="place-heading">
+          <div>
+            <p id="season-label" hidden></p>
+            <h1 id="scene-title">쉼터를 여는 중</h1>
+          </div>
+          <p id="scene-description">한국 시간에 맞는 풍경을 불러오고 있어요.</p>
+        </div>
+        <figure>
+          <div class="scene">
+            <canvas tabindex="0" aria-label="3D 풍경" aria-describedby="scene-controls"></canvas>
+            <p class="scene-error" hidden>이 기기에서 3D 풍경을 표시할 수 없어요.</p>
+          </div>
+          <figcaption>
+            <span id="scene-place"></span>
+            <span id="scene-controls">드래그 또는 방향키로 둘러보기</span>
+          </figcaption>
+        </figure>
       </section>
       <section class="food-section" aria-labelledby="food-title">
-        <div class="food-heading"><h2 id="food-title">계절 간식</h2><p id="food-hint"></p></div>
+        <div class="food-heading">
+          <h2 id="food-title">계절 간식</h2>
+          <p id="food-hint"></p>
+        </div>
         <div id="foods"></div>
         <p id="food-feedback" class="sr-only" role="status"></p>
       </section>
     </div>
     <section class="chat" aria-labelledby="chat-title">
-      <div class="chat-head"><div class="chat-icon" aria-hidden="true">☏</div><div><h2 id="chat-title">쉼터 수다</h2><p>메시지는 1분 뒤 사라져요</p></div></div>
+      <header class="chat-head">
+        <h2 id="chat-title" tabindex="-1">쉼터 수다</h2>
+        <p>메시지는 1분 뒤 사라져요.</p>
+      </header>
       <div class="chat-content">
-        <div class="empty" id="empty"><span aria-hidden="true">✧</span><strong>첫 이야기를 들려주세요.</strong><p>오늘 하루는 어땠나요?</p></div>
+        <p class="empty" id="empty">아직 이야기가 없어요.</p>
         <ul id="messages" aria-label="채팅 메시지" aria-live="polite"></ul>
       </div>
       <form id="chat-form">
-        <label for="nickname">별명</label>
-        <input id="nickname" maxlength="20" autocomplete="nickname" required>
-        <div class="compose"><input id="message" aria-label="메시지" placeholder="이야기를 남겨보세요…" maxlength="300" required><button type="submit" aria-label="메시지 보내기" disabled>➤</button></div>
+        <div class="nickname-row">
+          <label for="nickname">별명</label>
+          <input id="nickname" maxlength="20" autocomplete="nickname" placeholder="별명을 입력하세요" required>
+        </div>
+        <div class="compose">
+          <input id="message" aria-label="메시지" placeholder="메시지 쓰기" maxlength="300" required>
+          <button type="submit" disabled>보내기</button>
+        </div>
         <p id="chat-status" role="status"></p>
       </form>
     </section>

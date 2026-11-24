@@ -23,8 +23,8 @@ export async function handleAdmin(request, password = process.env.ADMIN_PASSWORD
   const html = (await readFile(new URL('./public/index.html', import.meta.url), 'utf8'))
     .replace('<body>', '<body data-preview="' + season + '">')
     .replace('<title>계절의 모닥불</title>', '<title>계절 미리보기 · 계절의 모닥불</title>')
-    .replace('<div class="calendar" id="calendar" aria-live="polite">계절 확인 중</div>',
-      '<div class="preview-tools"><a href="/">쉼터로 돌아가기</a><nav aria-label="미리 볼 계절">' + nav + '</nav></div>')
+    .replace(/<!-- header-tools:start -->[\s\S]*?<!-- header-tools:end -->/,
+      '<div class="preview-tools"><span class="preview-title">계절 미리보기</span><nav aria-label="미리 볼 계절">' + nav + '</nav></div>')
     .replace(/    <section class="chat"[\s\S]*?<\/section>/, '')
   return new Response(request.method === 'HEAD' ? null : html, { headers: {...headers, 'Content-Type':'text/html; charset=utf-8'} })
 }
