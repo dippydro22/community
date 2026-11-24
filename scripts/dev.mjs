@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import { readFile } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
 import { handleApi, messageLifetime } from '../server.js'
+import { handleAdmin } from '../admin.js'
 
 const messages = []
 const prune = (now) => {
@@ -31,12 +32,13 @@ createServer(async (incoming, outgoing) => {
     const url = new URL(incoming.url, origin)
     const method = incoming.method
     let response
-    if (url.pathname.startsWith('/api/')) {
+    if (url.pathname === '/admin' || url.pathname === '/api/admin' || url.pathname.startsWith('/api/')) {
       const request = new Request(url, {
         method, headers: incoming.headers,
         ...(method !== 'GET' && method !== 'HEAD' ? { body: Readable.toWeb(incoming), duplex: 'half' } : {})
       })
-      response = await handleApi(request, store)
+      response = url.pathname === '/admin' || url.pathname === '/api/admin'
+        ? await handleAdmin(request) : await handleApi(request, store)
     } else {
       const file = url.pathname === '/' ? '/index.html' : url.pathname
       const path = resolve(root, '.' + file)

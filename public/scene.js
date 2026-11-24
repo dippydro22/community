@@ -317,10 +317,10 @@ function makeFood(world, season, index) {
   }[season][index]
   surface.color.set(base)
   const raw = new T.Color(base)
-  const baked = new T.Color(index ? 0xd69753 : 0x774136)
+  const baked = new T.Color((season === 'winter' ? [0x66382d,0xc98348] : [0x6d3523,0xe2a141])[index])
   const burnt = new T.Color(0x24171a)
   let food
-  let flesh
+  let opened
   const spots = []
   if (season === 'winter' && index === 0) {
     const geometry = smooth.clone()
@@ -335,8 +335,24 @@ function makeFood(world, season, index) {
     geometry.computeVertexNormals()
     food = model(group, geometry, surface, [0,0,0], [.37,.16,.18])
     food.rotation.z = -.16
-    flesh = model(group, sphere, 0xffb54b, [.015,.123,.035], [.275,.045,.111])
-    flesh.visible = false
+    opened = new T.Group()
+    group.add(opened)
+    opened.visible = false
+    const whiteCenter = new T.MeshStandardMaterial({ color:0xffcb63, roughness:.88 })
+    const halfShell = new T.SphereGeometry(1,20,12,0,Math.PI*2,Math.PI/2,Math.PI/2)
+    for (const side of [-1,1]) {
+      const half = new T.Group()
+      half.position.set(side*.215,.015,0)
+      half.rotation.set(.58,side*.16,side*.28)
+      opened.add(half)
+      model(half, halfShell, 0x62392e, [0,0,0], [.239,.158,.174])
+      model(half, smooth, 0xe99338, [0,.008,0], [.218,.042,.157])
+      model(half, smooth, whiteCenter, [side*.016,.035,.012], [.159,.032,.116])
+      for (let i = 0; i < 3; i++) {
+        const fiber = model(half, sphere, 0xffdf8a, [(i-1)*.055,.063,.018], [.044,.008,.015])
+        fiber.rotation.y = (i-1)*.45
+      }
+    }
     for (let i = 0; i < 7; i++) {
       const x = (i-3)*.067
       const spot = model(group, sphere, 0x44212d, [x,.10,.11+Math.sin(i)*.023], [.026,.012,.026])
@@ -358,6 +374,28 @@ function makeFood(world, season, index) {
   } else {
     const sizes = { autumn: [[.21,.16,.19],[.13,.36,.14]], spring: [[.16,.20,.16],[.23,.22,.15]], summer: [[.29,.16,.20],[.23,.26,.21]] }
     food = model(group, season === 'spring' && index === 1 ? cone : sphere, surface, [0,0,0], sizes[season][index])
+    if (season === 'autumn' && index === 0) {
+      model(group, sphere, 0xc58c61, [0,-.076,.09], [.155,.064,.16])
+      const seam = model(group, sphere, 0xf1b66d, [0,.14,.02], [.128,.027,.025])
+      seam.visible = false
+      spots.push(seam)
+    }
+    if (season === 'autumn' && index === 1) {
+      for (let row = 0; row < 7; row++) {
+        for (let column = 0; column < 8; column++) {
+          const angle = column * Math.PI / 4 + row*.16
+          const y = (row-3)*.082
+          const radius = .073 + .054*Math.cos((row-3)*.41)
+          const kernel = model(group, sphere, column % 3 ? surface : 0xe3a647,
+            [Math.cos(angle)*radius,y,Math.sin(angle)*radius], [.032,.047,.035])
+          if ((row+column*3)%7 === 0) {
+            const spot = model(kernel,sphere,0x633820,[0,.67,0],[.72,.34,.72])
+            spot.visible = false
+            spots.push(spot)
+          }
+        }
+      }
+    }
     if (season === 'spring' && index === 0) model(group, sphere, 0x4f9850, [0,.18,0], [.12,.045,.12])
     if (season === 'spring' && index === 1) model(group, box, 0x344b40, [0,-.14,.09], [.15,.15,.13])
     if (season === 'summer' && index === 0) model(group, sphere, 0xfe5669, [0,.11,0], [.25,.067,.17])
@@ -367,7 +405,7 @@ function makeFood(world, season, index) {
   return (state, time, reduced) => {
     const stage = state?.stage ?? 'idle'
     const progress = state?.progress ?? 0
-    const inFire = stage === 'cooking' || stage === 'burned'
+    const inFire = stage === 'cooking'
     group.visible = stage !== 'eaten'
     const homeX = index ? .91 : -.91
     position.set(inFire ? (index ? .62 : -.55) : homeX,
@@ -381,7 +419,11 @@ function makeFood(world, season, index) {
     if (stage === 'burned') surface.color.copy(burnt)
     else surface.color.copy(raw).lerp(baked, stage === 'ready' ? 1 : Math.min(progress,1))
     for (let i = 0; i < spots.length; i++) spots[i].visible = stage === 'ready' || stage === 'burned' || progress > .62+i*.04
-    if (flesh) flesh.visible = stage === 'ready'
+    if (opened) {
+      opened.visible = stage === 'ready'
+      food.visible = !opened.visible
+      if (opened.visible) spots.forEach(spot => { spot.visible = false })
+    }
   }
 }
 

@@ -11,3 +11,9 @@ form{padding:14px 17px;border-top:1px solid var(--line)}form label{font-size:13p
 @media(max-width:720px){.top{flex-wrap:wrap;padding:15px 0}main{grid-template-columns:1fr}.scene{height:clamp(320px,58vh,480px)}.scene-copy{padding:23px 20px}.scene-foot{left:20px}.chat{height:490px;max-height:none}.food-section{padding:15px}.food-heading p{margin-top:4px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
 .calendar{border:1px solid var(--line);border-radius:30px;background:#151e2b;padding:8px 13px;color:var(--accent);font-size:14px;white-space:nowrap}
+body[data-preview] main{grid-template-columns:minmax(0,1fr)}
+.preview-tools{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.preview-tools a{color:var(--muted);font-size:14px;text-underline-offset:3px}
+.preview-tools nav{display:flex;gap:5px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.preview-tools button{border:1px solid transparent;border-radius:8px;padding:6px 11px;background:none;color:var(--muted);font-size:14px}
+.preview-tools button[aria-pressed=true],.preview-tools button:hover{border-color:#635041;background:#332a25;color:var(--accent)}
