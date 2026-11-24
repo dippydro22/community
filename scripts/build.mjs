@@ -1,10 +1,9 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { loadAssets } from './assets.mjs'
-const assets = await loadAssets()
-const data = Object.fromEntries(Object.entries(assets).map(([path, {type, body}]) => [path, {type, base64:body.toString('base64')}]))
-await mkdir('dist/server', {recursive:true})
-await mkdir('dist/.openai', {recursive:true})
-await cp('.openai/hosting.json', 'dist/.openai/hosting.json')
-await cp('drizzle', 'dist/server/drizzle', {recursive:true})
-const server = await readFile('server.js', 'utf8')
-await writeFile('dist/server/index.js', server + '\nconst assets = ' + JSON.stringify(data) + ';\nfor (const asset of Object.values(assets)) asset.body = Uint8Array.from(atob(asset.base64), char => char.charCodeAt(0));\nexport default createApp(assets);\n')
+import { cp, mkdir, rm } from 'node:fs/promises'
+
+await rm('dist', { recursive: true, force: true })
+await cp('public', 'dist', { recursive: true })
+await mkdir('dist/vendor', { recursive: true })
+for (const file of ['three.module.min.js', 'three.core.min.js']) {
+  await cp('node_modules/three/build/' + file, 'dist/vendor/' + file)
+}
+await cp('node_modules/three/LICENSE', 'dist/vendor/three.LICENSE')

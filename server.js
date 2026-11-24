@@ -1,72 +1,78 @@
-const rooms = new Set(['winter', 'spring', 'summer', 'autumn'])
-const ttl = 60000
+const calendar = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric'
+})
+export const messageLifetime = 60000
+
+export function getSeason(now = Date.now()) {
+  const parts = Object.fromEntries(calendar.formatToParts(now).map(({ type, value }) => [type, value]))
+  const month = Number(parts.month)
+  const year = Number(parts.year)
+  const season = month % 12 < 3 ? 'winter' : month < 6 ? 'spring' : month < 9 ? 'summer' : 'autumn'
+  const nextMonth = { winter: 2, spring: 5, summer: 8, autumn: 11 }[season]
+  const nextYear = year + Number(month === 12)
+  return { season, now, nextChange: Date.UTC(nextYear, nextMonth, 1) - 9 * 3600000 }
+}
 
 const json = (data, status = 200) => Response.json(data, {
   status,
   headers: { 'Cache-Control': 'no-store' }
 })
 
-export function createApp(assets) {
-  return {
-    async fetch(request, env) {
-      const url = new URL(request.url)
-      if (url.pathname !== '/api/chat') {
-        const asset = assets[url.pathname === '/' ? '/index.html' : url.pathname]
-        if (!asset || !Object.hasOwn(assets, url.pathname === '/' ? '/index.html' : url.pathname)) {
-          return new Response('Not found', { status: 404 })
-        }
-        return new Response(request.method === 'HEAD' ? null : asset.body, {
-          headers: { 'Content-Type': asset.type, 'Cache-Control': 'no-cache' }
-        })
-      }
-
-      const room = url.searchParams.get('room')
-      if (!rooms.has(room)) return json({error:'Unknown room'}, 400)
-      const db = env.DB
-      const now = Date.now()
-      try {
-        await db.prepare('DELETE FROM messages WHERE created <= ?').bind(now - ttl).run()
-        if (request.method === 'GET') {
-          const {results} = await db.prepare(
-            'SELECT id, name, message, created FROM (SELECT id, name, message, created FROM messages WHERE room = ? AND created > ? ORDER BY created DESC, id DESC LIMIT 100) ORDER BY created, id'
-          ).bind(room, now - ttl).all()
-          return json({now, messages:results})
-        }
-        if (request.method !== 'POST') return json({error:'Method not allowed'}, 405)
-        if (request.headers.get('Origin') && request.headers.get('Origin') !== url.origin) return json({error:'Invalid origin'}, 403)
-        if (!request.headers.get('Content-Type')?.startsWith('application/json')) return json({error:'Expected JSON'}, 415)
-        const reader = request.body?.getReader()
-        if (!reader) return json({error:'Missing body'}, 400)
-        let size = 0
-        let raw = ''
-        const decoder = new TextDecoder()
-        while (true) {
-          const {done, value} = await reader.read()
-          if (done) break
-          size += value.byteLength
-          if (size > 4096) {
-            await reader.cancel()
-            return json({error:'Body too large'}, 413)
-          }
-          raw += decoder.decode(value, {stream:true})
-        }
-        raw += decoder.decode()
-        let payload
-        try { payload = JSON.parse(raw) } catch { return json({error:'Invalid JSON'}, 400) }
-        const name = typeof payload?.name === 'string' ? payload.name.trim() : ''
-        const message = typeof payload?.message === 'string' ? payload.message.trim() : ''
-        if (!name || name.length > 20 || !message || message.length > 300) return json({error:'Invalid message'}, 400)
-        const id = crypto.randomUUID()
-        const sender = request.headers.get('CF-Connecting-IP') ?? 'local'
-        const result = await db.prepare(
-          'INSERT INTO messages (id, room, name, message, created, sender) SELECT ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM messages WHERE sender = ? AND created > ?) < 8'
-        ).bind(id, room, name, message, now, sender, sender, now - 10000).run()
-        if (!result.meta.changes) return json({error:'Too many messages'}, 429)
-        return json({id}, 201)
-      } catch (error) {
-        console.error('Chat database error', error)
-        return json({error:'Chat unavailable'}, 503)
-      }
+async function readPayload(request) {
+  const reader = request.body?.getReader()
+  if (!reader) return { error: 400 }
+  const decoder = new TextDecoder()
+  let size = 0
+  let raw = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > 4096) {
+      await reader.cancel()
+      return { error: 413 }
     }
+    raw += decoder.decode(value, { stream: true })
+  }
+  try { return { payload: JSON.parse(raw + decoder.decode()) } }
+  catch { return { error: 400 } }
+}
+
+export async function handleApi(request, store, clock = Date.now) {
+  const url = new URL(request.url)
+  const state = getSeason(clock())
+  if (url.pathname === '/api/season') {
+    return request.method === 'GET' ? json(state) : json({ error: 'Method not allowed' }, 405)
+  }
+  if (url.pathname !== '/api/chat') return json({ error: 'Not found' }, 404)
+  if (request.method === 'GET') {
+    try {
+      return json({ ...state, messages: await store.list(state.season, state.now) })
+    } catch {
+      return json({ ...state, error: 'Chat unavailable' }, 503)
+    }
+  }
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  const origin = request.headers.get('Origin')
+  if (origin && origin !== url.origin) return json({ error: 'Invalid origin' }, 403)
+  if (request.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json') {
+    return json({ error: 'Expected JSON' }, 415)
+  }
+  const { error, payload } = await readPayload(request)
+  if (error) return json({ error: 'Invalid body' }, error)
+  const name = typeof payload?.name === 'string' ? payload.name.trim() : ''
+  const message = typeof payload?.message === 'string' ? payload.message.trim() : ''
+  if (!name || name.length > 20 || !message || message.length > 300) {
+    return json({ error: 'Invalid message' }, 400)
+  }
+  const current = getSeason(clock())
+  if (payload.season !== current.season) return json(current, 409)
+  const entry = { id: crypto.randomUUID(), name, message, created: current.now }
+  const sender = request.headers.get('x-vercel-forwarded-for')?.split(',')[0].trim() || 'local'
+  try {
+    if (!await store.add(current.season, entry, sender)) return json({ error: 'Slow down' }, 429)
+    return json({ id: entry.id }, 201)
+  } catch {
+    return json({ error: 'Chat unavailable' }, 503)
   }
 }

@@ -1,3 +1,5 @@
+import { createSeasonScene } from './scene.js'
+
 const $ = (selector) => document.querySelector(selector)
 const seasons = {
   winter: ['❄', '겨울 쉼터', '눈 내리는 모닥불', '눈 덮인 숲에서 불을 쬐며 잠깐 쉬어가요.', '눈 덮인 소나무 숲', '모닥불 간식', '불에 올리고 알맞은 때에 꺼내보세요.', [['🍠', '군고구마', 60, 18], ['🍡', '마시멜로', 12, 5]]],
@@ -7,19 +9,21 @@ const seasons = {
 }
 
 const cooking = new Map()
-let season = 'winter'
+const scene = createSeasonScene($('.scene'))
+let season
+let seasonTimer
 let foodCards = []
 function selectSeason(key) {
   season = key
+  scene.setSeason(key)
   const [icon, label, title, description, place, foodTitle, hint, foods] = seasons[key]
   document.documentElement.dataset.season = key
-  for (const button of document.querySelectorAll('nav button')) {
-    button.setAttribute('aria-pressed', String(button.dataset.season === key))
-  }
   $('#season-label').textContent = icon + '　' + label
   $('#scene-title').textContent = title
   $('#scene-description').textContent = description
-  $('#scene-place').textContent = place
+  $('#season-label').hidden = false
+  $('#calendar').textContent = ({winter:'겨울', spring:'봄', summer:'여름', autumn:'가을'})[key] + ' · 한국 시간'
+  $('#scene-place').textContent = place + ' · 드래그해서 둘러보기'
   $('#food-title').textContent = foodTitle
   $('#food-hint').textContent = hint
   $('#chat-title').textContent = ({winter:'모닥불 옆 수다', spring:'돗자리 위 수다', summer:'해변에서 수다', autumn:'캠핑장 수다'})[key]
@@ -37,6 +41,7 @@ function selectSeason(key) {
       const elapsed = item ? (Date.now() - item.started) / 1000 : 0
       if (item?.stage === 'cooking' && elapsed >= duration + grace) item.stage = 'burned'
       const stage = item?.stage ?? 'idle'
+      scene.setFood(index, { stage, progress: duration ? elapsed / duration : 0 })
       let detail
       let action
       if (stage === 'cooking') {
@@ -75,12 +80,7 @@ function selectSeason(key) {
   $('#messages').replaceChildren()
   $('#empty').hidden = false
   $('#chat-status').textContent = ''
-  refreshChat()
-}
-for (const button of document.querySelectorAll('nav button')) {
-  button.addEventListener('click', () => {
-    if (button.dataset.season !== season) selectSeason(button.dataset.season)
-  })
+  $('#chat-form button').disabled = false
 }
 setInterval(() => foodCards.forEach(({update}) => update()), 200)
 
@@ -89,7 +89,30 @@ try { nickname.value = localStorage.getItem('hearth-nickname') ?? '' } catch {}
 const list = $('#messages')
 const status = $('#chat-status')
 let clockOffset = 0
+let newestServerTime = 0
 let latestRequest = 0
+function applySeason(state) {
+  if (state.now < newestServerTime) return false
+  newestServerTime = state.now
+  if (state.season !== season && Object.hasOwn(seasons, state.season)) selectSeason(state.season)
+  clockOffset = state.now - Date.now()
+  clearTimeout(seasonTimer)
+  seasonTimer = setTimeout(syncSeason, Math.max(1000, Math.min(60000, state.nextChange - state.now + 80)))
+  return true
+}
+async function syncSeason() {
+  try {
+    const response = await fetch('/api/season', { cache: 'no-store' })
+    if (!response.ok) throw Error()
+    const state = await response.json()
+    const changed = state.season !== season
+    applySeason(state)
+    if (changed) refreshChat()
+  } catch {
+    if (!season) $('#calendar').textContent = '계절을 다시 확인하는 중'
+    seasonTimer = setTimeout(syncSeason, 5000)
+  }
+}
 function ageMessages() {
   const now = Date.now() + clockOffset
   for (const element of [...list.children]) {
@@ -100,14 +123,17 @@ function ageMessages() {
   $('#empty').hidden = list.children.length > 0
 }
 async function refreshChat() {
-  const room = season
+  if (!season) return
   const request = ++latestRequest
   try {
-    const response = await fetch('/api/chat?room=' + room, { cache: 'no-store' })
-    if (!response.ok) throw Error()
+    const response = await fetch('/api/chat', { cache: 'no-store' })
     const result = await response.json()
-    if (request !== latestRequest || room !== season) return
-    clockOffset = result.now - Date.now()
+    if (request !== latestRequest) return
+    if (!response.ok) {
+      if (result.season) applySeason(result)
+      throw Error()
+    }
+    if (result.season !== season && !applySeason(result)) return
     const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 45
     const known = new Set([...list.children].map(element => element.dataset.id))
     for (const {id, name, message, created} of result.messages) {
@@ -140,12 +166,17 @@ $('#chat-form').addEventListener('submit', async (event) => {
   const input = $('#message')
   const name = nickname.value.trim()
   const message = input.value.trim()
-  if (!name || !message) return
+  if (!name || !message || !season) return
   const room = season
   const submit = event.currentTarget.querySelector('button')
   submit.disabled = true
   try {
-    const response = await fetch('/api/chat?room=' + room, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,message})})
+    const response = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,message,season:room})})
+    if (response.status === 409) {
+      applySeason(await response.json())
+      refreshChat()
+      throw Error('계절이 바뀌었어요. 새 쉼터에 다시 보내주세요.')
+    }
     if (!response.ok) throw Error(response.status === 429 ? '잠시 쉬었다가 다시 보내주세요.' : '메시지를 보내지 못했어요. 다시 시도해주세요.')
     try { localStorage.setItem('hearth-nickname', name) } catch {}
     if (input.value.trim() === message) input.value = ''
@@ -157,74 +188,11 @@ $('#chat-form').addEventListener('submit', async (event) => {
     submit.disabled = false
   }
 })
-selectSeason('winter')
-setInterval(refreshChat, 1800)
+syncSeason()
+setInterval(() => {
+  if (!document.hidden) refreshChat()
+}, 2400)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshChat()
+})
 setInterval(ageMessages, 120)
-
-const scene = $('.scene')
-const canvas = $('.scene canvas')
-const context = canvas.getContext('2d')
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
-let pointerX = 0
-let pointerY = 0
-scene.addEventListener('pointermove', (event) => {
-  if (reducedMotion.matches) return
-  const bounds = scene.getBoundingClientRect()
-  pointerX = (event.clientX - bounds.left) / bounds.width - .5
-  pointerY = (event.clientY - bounds.top) / bounds.height - .5
-  scene.style.setProperty('--x', pointerX * -16 + 'px')
-  scene.style.setProperty('--y', pointerY * -12 + 'px')
-})
-scene.addEventListener('pointerleave', () => {
-  pointerX = pointerY = 0
-  scene.style.setProperty('--x', '0px')
-  scene.style.setProperty('--y', '0px')
-})
-const particles = Array.from({length:90}, () => ({x:Math.random(), y:Math.random(), size:Math.random(), speed:Math.random()}))
-function draw(time) {
-  const width = canvas.clientWidth
-  const height = canvas.clientHeight
-  const scale = Math.min(devicePixelRatio, 2)
-  if (canvas.width !== Math.round(width * scale) || canvas.height !== Math.round(height * scale)) {
-    canvas.width = Math.round(width * scale)
-    canvas.height = Math.round(height * scale)
-  }
-  context.setTransform(scale, 0, 0, scale, 0, 0)
-  context.clearRect(0, 0, width, height)
-  if (!reducedMotion.matches && season === 'summer') {
-    for (let wave = 0; wave < 3; wave++) {
-      const phase = (time / 4700 + wave / 3) % 1
-      context.beginPath()
-      context.strokeStyle = 'rgba(227,251,248,' + Math.sin(phase * Math.PI) * .15 + ')'
-      context.lineWidth = 1 + phase * 2
-      context.moveTo(width * .18, height * (.52 + phase * .06))
-      context.bezierCurveTo(width * .45, height * (.56 + phase * .1), width * .75, height * (.68 + phase * .12), width, height * (.69 + phase * .13))
-      context.stroke()
-    }
-  }
-  if (!reducedMotion.matches && season !== 'summer') {
-    if (season === 'winter') {
-      const glow = context.createRadialGradient(width*.52, height*.67, 0, width*.52, height*.67, width*.26)
-      glow.addColorStop(0, 'rgba(255,134,40,' + (.10 + Math.sin(time/140)*.035) + ')')
-      glow.addColorStop(1, '#ff780000')
-      context.fillStyle = glow
-      context.fillRect(0,0,width,height)
-    }
-    particles.forEach((particle, index) => {
-      const spark = season === 'winter' && index < 28
-      const depth = .4 + particle.size * 1.6
-      const fall = (particle.y + time * (.000028 + particle.speed * .00005) * depth) % 1
-      const rise = (particle.y + time * (.00027 + particle.speed * .0002)) % 1
-      const x = (spark ? .52 + (particle.x - .5) * (.12 + rise * .24) : particle.x) * width + Math.sin(time / 600 + index) * 13 - pointerX * depth * 32
-      const y = (spark ? .69 - rise * .43 : fall) * height - pointerY * depth * 24
-      context.fillStyle = spark ? '#ffbc64' : ({winter:'#ebf6ff',spring:'#ffb6d2',autumn:'#f5a54f'})[season]
-      context.globalAlpha = spark ? (1-rise)*.8 : .19 + particle.size*.42
-      context.beginPath()
-      context.ellipse(x, y, depth * (spark ? 1 : 1.6), depth * (season === 'winter' ? 1 : 2.5), time / 1200 + index, 0, Math.PI*2)
-      context.fill()
-    })
-    context.globalAlpha = 1
-  }
-  requestAnimationFrame(draw)
-}
-requestAnimationFrame(draw)
